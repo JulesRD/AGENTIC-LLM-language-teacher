@@ -3,3 +3,4 @@ langchain
 langchain-mistralai
 langgraph
 python-dotenv
+langchain-ollama

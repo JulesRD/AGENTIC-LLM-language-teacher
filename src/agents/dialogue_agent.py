@@ -1,21 +1,18 @@
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_mistralai import ChatMistralAI
+from langchain_ollama import ChatOllama
 from langgraph.prebuilt import create_react_agent
 from langchain_core.tools import tool
 import os
 from dotenv import load_dotenv
 
-# Load environment variables
+# Load environment variables from .env file
 load_dotenv()
-api_key = os.getenv("MISTRAL_API_KEY")
-if not api_key:
-    raise ValueError("MISTRAL_API_KEY not found in .env")
+# No API key needed for local Ollama model
 
-# Initialize model
-model = ChatMistralAI(
-    model="mistral-small-latest",
+# Initialize the chat model using Ollama
+model = ChatOllama(
+    model="phi4-mini:latest",
     temperature=0,
-    api_key=api_key,
 )
 
 # Define a simple tool

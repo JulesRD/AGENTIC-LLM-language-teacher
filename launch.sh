@@ -4,7 +4,7 @@
 # Utilisation: ./launch.sh <agent_type> [--help]
 
 # Variables d'environnement
-export MISTRAL_API_KEY="eBeRjFyEQSDuBOfBjywibb7a08LvnEbg"
+# export MISTRAL_API_KEY="eBeRjFyEQSDuBOfBjywibb7a08LvnEbg"  # Commented out since using local Ollama model
 # Ajoutez ici d'autres variables d'environnement si nécessaire
 
 # Fonction d'aide
