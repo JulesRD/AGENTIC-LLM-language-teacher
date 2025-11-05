@@ -1,51 +1,76 @@
-from langchain_core.prompts import ChatPromptTemplate
 from langchain_ollama import ChatOllama
-from langgraph.prebuilt import create_react_agent
-from langchain_core.tools import tool
+from langchain_mistralai import ChatMistralAI
+from langchain.agents import create_agent
+from src.tools.dialogue import *
 import os
 from dotenv import load_dotenv
+import json
 
-# Load environment variables from .env file
+# Load environment variables
 load_dotenv()
-# No API key needed for local Ollama model
 
-# Initialize the chat model using Ollama
-model = ChatOllama(
-    model="phi4-mini:latest",
-    temperature=0,
-)
+
+
+def llm(user_message, model, system_prompt, tools):
+
+    agent = create_agent(
+        model=model,
+        tools=[get_weather],
+        system_prompt=system_prompt,
+    )
+    messages = [("user", user_message)]
+    while True:
+        # Call the agent
+        response = agent.invoke({"messages": messages})
+        final_message = response["messages"][-1].content
+        print("Agent:", final_message)
+
+        # Check if the agent wants to call a tool
+        if "<|python_tag|>" in final_message:
+            # Extraire le nom du tool et les arguments
+            tag_start = final_message.index("<|python_tag|>") + len("<|python_tag|>")
+            tag_end = final_message.index("\n", tag_start) if "\n" in final_message[tag_start:] else len(final_message)
+            tool_call = final_message[tag_start:tag_end]
+
+            # On parse le tool_call pour extraire location (très simple ici)
+            # Exemple: get_weather properties="location: Paris" required=["location"]="true" type="string"
+            location = tool_call.split('location:')[1].split('"')[0].strip()
+
+            # Appeler la fonction Python correspondante
+            tool_result = get_weather(location)
+
+            # Ajouter la sortie du tool dans l'historique comme un message assistant
+            messages.append(("assistant", final_message))  # réponse du modèle avant exécution
+            messages.append(("tool", tool_result))        # sortie du tool
+
+            # On boucle pour demander au modèle de continuer avec le résultat du tool
+            continue
+        else:
+            # Plus de tool à appeler, fin de boucle
+            break
+
+
+# Determine model provider from environment
+model_name = os.getenv("MODEL", "ollama").lower()
+
+if model_name.startswith("mi") :
+    model = ChatMistralAI(
+        model=model_name,
+        api_key=os.getenv("MISTRAL_API_KEY"),
+        temperature=0.8,
+    )
+else:
+    model = ChatOllama(
+        model=model_name,
+        temperature=0.8,
+    )
 
 # Define a simple tool
-@tool
-def get_weather(location: str) -> str:
-    """Get the current weather for a given location."""
-    return f"The weather in {location} is sunny and 25°C."
+
 
 # Define the system prompt
-prompt = ChatPromptTemplate.from_messages([
-    ("system", "You are a helpful assistant with access to tools. "
-               "When asked about weather, use the get_weather tool."),
-    ("placeholder", "{messages}")
-])
+system_prompt = "You are a helpful assistant with access to tools. When asked about weather, use the get_weather tool."
 
-# Create the agent
-agent = create_react_agent(
-    model=model,
-    tools=[get_weather],
-    prompt=prompt,
-)
+user_message = "What's the weather in Paris? What can you conclude?"
 
-# Run the agent
-try:
-    response = agent.invoke({
-        "messages": [
-            ("user", "What's the weather in Paris ? What can you conclude ?")
-        ]
-    })
-
-    # Print results
-    final_message = response["messages"][-1]
-    print(final_message.content)
-except Exception as e:
-    print(f"Erreur lors de l'appel à l'API : {e}")
-    print("Vérifiez votre connexion internet et la disponibilité de l'API Mistral.")
+llm(user_message, model, system_prompt, [get_weather])
