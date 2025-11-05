@@ -1,1 +1,3 @@
 mistralai
+langchain-ollama
+langchain-mistralai
