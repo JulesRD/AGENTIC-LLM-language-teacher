@@ -1,1 +1,5 @@
 mistralai
+langchain
+langchain-mistralai
+langgraph
+python-dotenv
