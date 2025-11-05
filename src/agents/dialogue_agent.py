@@ -5,24 +5,15 @@ from src.tools.dialogue import *
 import os
 from dotenv import load_dotenv
 import json
+import sys
+
+# Force UTF-8 encoding for input/output
+sys.stdin.reconfigure(encoding='utf-8')
+sys.stdout.reconfigure(encoding='utf-8')
 
 # Load environment variables
 load_dotenv()
-
-
-
-def llm(user_message, model, system_prompt, tools):
-
-    agent = create_agent(
-        model=model,
-        tools=tools,
-        system_prompt=system_prompt,
-    )
-    messages = [("user", user_message)]
-    response = agent.invoke({"messages": messages})
-    final_message = response["messages"][-1].content
-    print("Agent:", final_message)
-        
+NUMBER_WINDOWS = 2
 
 
 # Determine model provider from environment
@@ -40,18 +31,65 @@ else:
         temperature=0.8,
     )
 
-system_prompt = """
-You are a helpful assistant with access to tools.
-When asked about weather, use the get_weather tool.
-When asked about city id, use the get_city_by_id tool.
-"""
+user_description = "Dimitri, 21 years old, student at Epita in AI"
+theme = "past simple vs present perfect"
+language = "English"
+level = "B2-C1, TOEIC 815/990"
+teacher_style = "formal"
 
-user_message = "What's the weather in the city with id AZéB7U? What can you conclude?"
 
-tools = [get_weather, get_city_by_id]
+with open('data/dialogue.system_prompt.md', 'r') as f:
+    system_prompt = f.read()
+system_prompt = system_prompt.format(
+    user_description=user_description,
+    theme=theme,
+    language=language,
+    level=level,
+    teacher_style=teacher_style
+)
 
-llm(
-    user_message,
-    model,
-    system_prompt,
-    tools)
+tools = [end_discussion]
+
+first_user_message = "Start the language learning dialogue by introducing yourself and asking the first specific question about the theme."
+
+
+def run_dialogue_agent(model, system_prompt, tools, first_user_message):
+    global END_OF_DISCUSSION
+    agent = create_agent(
+        model=model,
+        tools=tools,
+        system_prompt=system_prompt,
+    )
+
+    messages = []
+
+    # Initial prompt to start the conversation
+    messages.append(("user", first_user_message))
+    response = agent.invoke({"messages": messages})
+    initial_message = response["messages"][-1].content
+    print("")
+    print("------------- Type /quit to exit. -------------", end="\n\n\n")
+    print("Agent:", initial_message, end="\n\n")
+    messages.append(("assistant", initial_message))
+
+
+    while True:
+        user_input = input("You: ")
+        if user_input.strip() == "/quit":
+            print("Goodbye!")
+            break
+        messages.append(("user", user_input))
+        response = agent.invoke({"messages": messages})
+        agent_message = response["messages"][-1].content
+        if END_OF_DISCUSSION:
+            print("\n------------ Agent ------------")
+            print(agent_message.replace("END_OF_DISCUSSION:", "").strip())
+            print("\nDiscussion ended by the agent.")
+            break
+        print("\n------------ Agent ------------")
+        print(agent_message, end="\n\n")
+        messages.append(("assistant", agent_message))
+
+
+if __name__ == "__main__":
+    run_dialogue_agent(model, system_prompt, tools, first_user_message)
