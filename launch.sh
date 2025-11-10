@@ -4,8 +4,6 @@
 # Utilisation: ./launch.sh <agent_type> [--help]
 
 # Variables d'environnement
-export MISTRAL_API_KEY="eBeRjFyEQSDuBOfBjywibb7a08LvnEbg"
-# Ajoutez ici d'autres variables d'environnement si nécessaire
 
 # Fonction d'aide
 show_help() {

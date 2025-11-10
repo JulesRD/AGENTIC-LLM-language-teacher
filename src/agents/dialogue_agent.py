@@ -2,6 +2,7 @@ from langchain_ollama import ChatOllama
 from langchain_mistralai import ChatMistralAI
 from langchain.agents import create_agent
 from src.tools.dialogue import *
+from src.config import config
 import os
 from dotenv import load_dotenv
 import json
@@ -23,7 +24,7 @@ if model_name.startswith("m") :
     model = ChatMistralAI(
         model=model_name,
         api_key=os.getenv("MISTRAL_API_KEY"),
-        temperature=0.8,
+        temperature=0,
     )
 else:
     model = ChatOllama(
@@ -54,7 +55,6 @@ first_user_message = "Start the language learning dialogue by introducing yourse
 
 
 def run_dialogue_agent(model, system_prompt, tools, first_user_message):
-    global END_OF_DISCUSSION
     agent = create_agent(
         model=model,
         tools=tools,
@@ -81,12 +81,10 @@ def run_dialogue_agent(model, system_prompt, tools, first_user_message):
         messages.append(("user", user_input))
         response = agent.invoke({"messages": messages})
         agent_message = response["messages"][-1].content
-        if END_OF_DISCUSSION:
-            print("\n------------ Agent ------------")
-            print(agent_message.replace("END_OF_DISCUSSION:", "").strip())
+        print("\n------------ Agent ------------")
+        if config.end_of_discussion:
             print("\nDiscussion ended by the agent.")
             break
-        print("\n------------ Agent ------------")
         print(agent_message, end="\n\n")
         messages.append(("assistant", agent_message))
 
