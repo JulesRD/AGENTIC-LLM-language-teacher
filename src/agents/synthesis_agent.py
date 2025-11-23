@@ -1,5 +1,5 @@
 import json
-from base_agent import BaseAgent
+from src.agents.base_agent import BaseAgent
 
 
 class SynthesisAgent(BaseAgent):

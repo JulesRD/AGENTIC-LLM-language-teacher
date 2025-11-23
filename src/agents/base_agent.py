@@ -1,4 +1,4 @@
-from llm_wrapper import LLMWrapper
+from src.agents.llm_wrapper import LLMWrapper
 from uuid import uuid4
 from datetime import datetime
 
