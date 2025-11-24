@@ -105,7 +105,6 @@ class ResearchAgent(BaseAgent):
     def decide_action(self, message, source="user", sender=None):
         # Here we process the request as a given topic
         queries = self.generate_queries(message)
-        print(f"[{self.name}] Generated queries: {queries}\n\n\n")
         articles = self.fetch_articles(queries)
         return json.dumps(articles, ensure_ascii=False, indent=2)
 

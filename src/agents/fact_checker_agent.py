@@ -44,8 +44,12 @@ class FactCheckerAgent(BaseAgent):
                 f"Iteration {i + 1}/{self.max_iterations}\n\n"
                 f"SYNTHESIS:\n{current_summary}\n\n"
                 f"RETRIEVED CONTEXT:\n{context}\n\n"
-                "Improve the synthesis: correct errors, detect contradictions, "
-                "add citations, flag uncertain areas."
+                "Task: Improve the synthesis based on the context.\n"
+                "- Correct any factual errors.\n"
+                "- Remove contradictions.\n"
+                "- Integrate missing citations if available in context.\n"
+                "- Ensure the text flows well.\n"
+                "IMPORTANT: Output ONLY the rewritten synthesis. Do not output a list of changes or a critique section. Do not repeat the 'SYNTHESIS' header."
             )
             current_summary = self.model.chat(self.system_prompt, prompt)
         return current_summary

@@ -14,27 +14,30 @@ class BaseAgent:
         self.system_prompt = system_prompt
         self.model = LLMWrapper()
 
-    def handle_user_message(self, message):
+    def handle_user_message(self, message, **kwargs):
         """
         Process a message from the user and return a response.
         
         Args:
             message: The user's input message
+            **kwargs: Additional arguments to pass to decide_action
             
         Returns:
             The agent's response
         """
-        print(f"[{self.name}] Processing user message: {message}")
-        response = self.decide_action(message)
+        
+        print(f"[{self.name}] Processing user message: {message[:50]}...")
+        response = self.decide_action(message, **kwargs)
         return response
 
-    def decide_action(self, message):
+    def decide_action(self, message, **kwargs):
         """
         Core decision-making method to be overridden by specialized agents.
         Default implementation uses the LLM to generate a response.
         
         Args:
             message: The input message to process
+            **kwargs: Additional arguments
             
         Returns:
             The agent's response

@@ -1,10 +1,14 @@
 import os
 
 from langchain_core.messages import BaseMessage
+# load dotenv
+from dotenv import load_dotenv
+
 
 
 class LLMWrapper:
     def __init__(self):
+        load_dotenv()
         self.model_name = os.getenv("MODEL", "ollama").lower()
         if self.model_name.startswith("m"):
             from langchain_mistralai import ChatMistralAI

@@ -116,6 +116,32 @@
         #clear-btn:hover {
             background-color: #a71d2a;
         }
+        #progress-container {
+            display: none;
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 0 1rem;
+            box-sizing: border-box;
+        }
+        #progress-bar-wrapper {
+            width: 100%;
+            background-color: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        #progress-bar {
+            width: 0%;
+            height: 10px;
+            background-color: #28a745;
+            transition: width 0.3s ease;
+        }
+        #progress-text {
+            font-size: 0.8rem;
+            color: #666;
+            margin-top: 0.2rem;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -125,6 +151,12 @@
     </header>
     <div id="chat-container">
         <!-- Messages will appear here -->
+    </div>
+    <div id="progress-container">
+        <div id="progress-bar-wrapper">
+            <div id="progress-bar"></div>
+        </div>
+        <div id="progress-text">Processing...</div>
     </div>
     <div id="input-area">
         <input type="text" id="message-input" placeholder="Type your message..." autocomplete="off">
@@ -136,6 +168,9 @@
         const messageInput = document.getElementById('message-input');
         const sendBtn = document.getElementById('send-btn');
         const clearBtn = document.getElementById('clear-btn');
+        const progressContainer = document.getElementById('progress-container');
+        const progressBar = document.getElementById('progress-bar');
+        const progressText = document.getElementById('progress-text');
 
         function appendMessage(role, content) {
             const div = document.createElement('div');
@@ -165,24 +200,71 @@
             messageInput.value = '';
             messageInput.disabled = true;
             sendBtn.disabled = true;
+            
+            // Reset and show progress bar
+            progressBar.style.width = '0%';
+            progressText.textContent = 'Starting...';
+            progressContainer.style.display = 'block';
 
             try {
-                const res = await fetch('/chat', {
+                const response = await fetch('/chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ message: text })
                 });
                 
-                if (!res.ok) throw new Error('Network response was not ok');
+                if (!response.ok) throw new Error('Network response was not ok');
                 
-                const data = await res.json();
-                appendMessage('assistant', data.response);
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    buffer += decoder.decode(value, { stream: true });
+                    // Split by double newline to separate events, or single newline if that's what we get
+                    // But standard SSE uses \n\n between events.
+                    // Let's try a more robust line-by-line approach.
+                    const lines = buffer.split(/\r?\n/);
+                    buffer = lines.pop(); // Keep the last incomplete chunk
+
+                    for (const line of lines) {
+                        const trimmedLine = line.trim();
+                        if (!trimmedLine) continue;
+
+                        if (trimmedLine.startsWith('data:')) {
+                            // Remove 'data:' prefix and trim whitespace
+                            const jsonStr = trimmedLine.substring(5).trim();
+                            try {
+                                console.log("Parsing JSON:", jsonStr);
+                                const data = JSON.parse(jsonStr);
+                                if (data.type === 'progress') {
+                                    progressBar.style.width = data.percentage + '%';
+                                    progressText.textContent = data.step;
+                                } else if (data.type === 'result') {
+                                    appendMessage('assistant', data.content);
+                                } else if (data.type === 'error') {
+                                    appendMessage('assistant', 'Error: ' + data.content);
+                                }
+                            } catch (e) {
+                                console.error('Error parsing SSE data', e, "Line:", trimmedLine);
+                            }
+                        }
+                    }
+                }
             } catch (e) {
                 appendMessage('assistant', 'Error: ' + e.message);
             } finally {
                 messageInput.disabled = false;
                 sendBtn.disabled = false;
                 messageInput.focus();
+                // Keep progress bar visible for a moment if successful, or hide immediately?
+                // Let's hide it after a short delay to let the user see 100%
+                setTimeout(() => {
+                    progressContainer.style.display = 'none';
+                }, 1000);
             }
         }
 
