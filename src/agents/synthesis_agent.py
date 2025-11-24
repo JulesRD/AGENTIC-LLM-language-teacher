@@ -44,8 +44,7 @@ class SynthesisAgent(BaseAgent):
         prompt += "\nFinal Synthesis:"
         return self.model.chat(self.system_prompt, prompt)
 
-    # Fonction de prise de décision
-    def decide_action(self, message, source="user", sender=None):
+    def decide_action(self, message):
         try:
             parsed = json.loads(message)
             if "subject" not in parsed or "articles" not in parsed:

@@ -16,17 +16,17 @@ class PlannerAgent(BaseAgent):
         self.fact_checker_agent = fact_checker_agent
         super().__init__(name, system_prompt)
 
-    def decide_action(self, message, source="user", sender=None):
+    def decide_action(self, message):
         # TODO
-        # Étape 1 : Génération du sujet clair via LLM
+        # Step 1: Generate clear topic via LLM
 
-        # Étape 2 : Envoi du sujet à l'Agent Recherche
+        # Step 2: Send topic to Research Agent
 
-        # Étape 3 : Envoi à l'Agent Synthèse
+        # Step 3: Send to Synthesis Agent
 
-        # Étape 4 : Envoi à l'Agent Fact-Checker
+        # Step 4: Send to Fact-Checker Agent
 
-        # Étape 5 : retour final user
+        # Step 5: Return final result to user
         pass
 
 if __name__ == "__main__":
