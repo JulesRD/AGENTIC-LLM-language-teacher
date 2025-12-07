@@ -1,9 +1,10 @@
 from src.agents.base_agent import BaseAgent
 import json
 import requests
+from src.tools.simple_rag_tool import SimpleRAG
 
 class ResearchAgent(BaseAgent):
-    def __init__(self, name="Research"):
+    def __init__(self, rag: SimpleRAG, name="Research"):
         system_prompt = (
             "You are a highly efficient scientific research agent.\n"
             "Your task is to generate several relevant web queries from a given topic in order to broadly cover the subject.\n"
@@ -12,6 +13,7 @@ class ResearchAgent(BaseAgent):
             "- Verify the consistency and completeness of your JSON before returning it."
         )
         super().__init__(name, system_prompt)
+        self.rag = rag
 
     def generate_queries(self, topic):
         prompt = f"""
@@ -101,15 +103,13 @@ class ResearchAgent(BaseAgent):
 
         return articles
 
+    def add_articles_to_rag(self, articles):
+        # This method can be used to add articles to a RAG tool if needed
+        self.rag.add_documents(articles)
 
     def decide_action(self, message, source="user", sender=None):
         # Here we process the request as a given topic
         queries = self.generate_queries(message)
         articles = self.fetch_articles(queries)
+        self.add_articles_to_rag(articles)
         return json.dumps(articles, ensure_ascii=False, indent=2)
-
-if __name__ == "__main__":
-    research_agent = ResearchAgent()
-    topic = "Impact of California wildfires"
-    results = research_agent.handle_user_message(topic)
-    print(json.dumps(results, indent=2, ensure_ascii=False))

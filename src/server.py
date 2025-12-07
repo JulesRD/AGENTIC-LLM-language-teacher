@@ -10,6 +10,8 @@ import queue
 import threading
 import time
 
+from src.tools.simple_rag_tool import SimpleRAG
+
 # Add the project root to sys.path to allow imports from src
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
@@ -40,9 +42,10 @@ planner_agent = None
 
 try:
     # Initialize Agents
-    research_agent = ResearchAgent("Research")
-    synthesis_agent = SynthesisAgent("Synthesis")
-    fact_checker_agent = FactCheckerAgent("FactChecker")
+    rag = SimpleRAG(LLMWrapper().model, embedding_model="mxbai-embed-large")
+    research_agent = ResearchAgent(rag, "Research")
+    synthesis_agent = SynthesisAgent(rag, "Synthesis")
+    fact_checker_agent = FactCheckerAgent(rag, "FactChecker")
     planner_agent = PlannerAgent("Planner", research_agent, synthesis_agent, fact_checker_agent)
     print("Agents initialized successfully.")
 except Exception as e:

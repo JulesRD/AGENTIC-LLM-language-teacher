@@ -3,6 +3,7 @@ from src.agents.base_agent import BaseAgent
 from src.agents.fact_checker_agent import FactCheckerAgent
 from src.agents.research_agent import ResearchAgent
 from src.agents.synthesis_agent import SynthesisAgent
+from src.tools.simple_rag_tool import SimpleRAG
 
 
 class PlannerAgent(BaseAgent):
@@ -69,8 +70,7 @@ class PlannerAgent(BaseAgent):
         # Step 5: Return final result to user
         if progress_callback:
             progress_callback("Finalizing response...", 100)
-            
-        print("\n\n\n-------------------resulat over---------------------\n\n\n")
+
         return final_result
 
 if __name__ == "__main__":

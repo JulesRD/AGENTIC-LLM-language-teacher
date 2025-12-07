@@ -6,13 +6,15 @@ from langchain_core.documents import Document
 
 
 class SimpleRAG:
-    def __init__(self, llm, documents, embedding_model="nomic-embed-text"):
+    def __init__(self, llm, documents=None, embedding_model="mxbai-embed-large"):
         """
         llm : instance de ChatOllama (ton modèle LLM)
         documents : liste de langchain_core.documents.Document
         embedding_model : modèle d'embedding gratuit supporté par Ollama
                           ex : "nomic-embed-text", "mxbai-embed-large"
         """
+        if documents is None:
+            documents = []
         self.documents = [
             d if isinstance(d, Document)
             else Document(
@@ -49,6 +51,17 @@ class SimpleRAG:
             | self.prompt
             | self.llm
         )
+
+    def add_documents(self, new_documents):
+        new_docs = [
+            d if isinstance(d, Document)
+            else Document(
+                page_content=d.get("content", d.get("text", "")),
+                metadata={k: v for k, v in d.items() if k not in ["content", "text"]}
+            )
+            for d in new_documents
+        ]
+        self.vs.add_documents(new_docs)
 
     def query(self, question):
         return self.chain.invoke(question)

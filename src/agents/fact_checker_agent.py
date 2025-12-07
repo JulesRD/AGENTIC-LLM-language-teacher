@@ -14,7 +14,7 @@ class FactCheckerAgent(BaseAgent):
         - Return an annotated or cleaned version of the final synthesis.
     """
 
-    def __init__(self, name, max_iterations=3):
+    def __init__(self, rag: SimpleRAG, name, max_iterations=3):
         self.system_prompt = """
             You are a Fact-Checker agent. 
             Your task is to review scientific summaries and suggest improvements.
@@ -27,11 +27,8 @@ class FactCheckerAgent(BaseAgent):
             Output a corrected and annotated summary highlighting uncertain points.
         """
         super().__init__(name, self.system_prompt)
-        self.rag = None
+        self.rag = rag
         self.max_iterations = max_iterations
-
-    def create_rag_tool(self, articles):
-        self.rag = SimpleRAG(self.model.model, articles)
 
     def fact_check_synthesis(self, topic, synthesis):
         current_summary = synthesis
@@ -57,47 +54,14 @@ class FactCheckerAgent(BaseAgent):
     def decide_action(self, message):
         try:
             parsed = json.loads(message)
-            if "subject" not in parsed or "articles" not in parsed or "synthesis" not in parsed:
+            if "subject" not in parsed or "synthesis" not in parsed:
                 raise ValueError("Invalid input format")
         except Exception:
-            return "ERROR: SynthesisAgent expected a JSON string containing 'topic' and 'articles'."
+            return "ERROR: SynthesisAgent expected a JSON string containing 'subject' and 'synthesis'."
 
         topic = parsed.get("subject")
-        articles = parsed.get("articles", [])
         synthesis = parsed.get("synthesis", "")
-
-        # Initialize RAG tool with articles
-        self.create_rag_tool(articles)
 
         # Perform fact-checking and improvement
         improved_summary = self.fact_check_synthesis(topic, synthesis)
         return improved_summary
-
-
-
-# Usage example
-if __name__ == "__main__":
-    agent_fact_checker = FactCheckerAgent("Fact-Checker", max_iterations=2)
-
-    # Example interaction
-    msg = json.dumps({
-        "subject": "AI in Healthcare",
-        "articles": [
-            {
-                "name": "Article 1",
-                "author": "Author A",
-                "link": "http://example.com/article1",
-                "content": "This article reviews the recent advances in AI applications in healthcare..."
-            },
-            {
-                "name": "Article 2",
-                "author": "Author B",
-                "link": "http://example.com/article2",
-                "content": "Machine learning techniques have shown promise in improving medical diagnosis accuracy..."
-            }
-        ],
-        "synthesis": "The synthesized summary states that AI has revolutionized healthcare by improving diagnostics and treatment plans. However, some claims lack proper citations and there are inconsistencies regarding the timeline of AI advancements."
-    })
-
-    fact_checked_summary = agent_fact_checker.handle_user_message(msg)
-    print("Fact-Checked Summary:\n", fact_checked_summary)

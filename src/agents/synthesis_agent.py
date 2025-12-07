@@ -1,5 +1,6 @@
 import json
 from src.agents.base_agent import BaseAgent
+from src.tools.simple_rag_tool import SimpleRAG
 
 
 class SynthesisAgent(BaseAgent):
@@ -9,13 +10,14 @@ class SynthesisAgent(BaseAgent):
         2) Synthesizing all summaries into a final structured answer.
         """
 
-    def __init__(self, name):
+    def __init__(self, rag: SimpleRAG, name):
         self.system_prompt = """
         You are a scientific synthesis agent.
         Your task is to summarize and synthesize information from scientific articles.
         Do not introduce any new information not present in the articles.
         """
         super().__init__(name, self.system_prompt)
+        self.rag = rag
 
     def summarize_article(self, topic, article):
         content = article.get("content", "")
