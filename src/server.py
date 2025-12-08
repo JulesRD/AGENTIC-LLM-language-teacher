@@ -9,6 +9,10 @@ import json
 import queue
 import threading
 import time
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 from src.tools.simple_rag_tool import SimpleRAG
 
@@ -18,6 +22,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".
 from src.agents.llm_wrapper import LLMWrapper
 from src.agents.research_agent import ResearchAgent
 from src.agents.analyse  import AnalysisAgent
+from src.costs.cost_logger import CostLogger
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -34,8 +39,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from uuid import uuid4
+
 # State
 history = []
+current_session_id = str(uuid4())
 planner_agent = None
 # documents : langchain_core.documents.Document
 from langchain_core.documents import Document
@@ -63,13 +71,17 @@ async def chat_endpoint(request: ChatRequest):
     history.append({"role": "user", "content": user_msg})
     q = queue.Queue()
 
-    def progress_callback(steps_data):
-        data = json.dumps({"type": "reflection", "content": steps_data})
+    def progress_callback(event_data):
+        data = json.dumps({"type": "reflection_update", "content": event_data})
         q.put(f"data: {data}\n\n")
 
     def worker():
         try:
-            response_content = planner_agent.handle_user_message(user_msg, callback=progress_callback)
+            response_content = planner_agent.handle_user_message(
+                user_msg, 
+                callback=progress_callback,
+                session_id=current_session_id
+            )
             history.append({"role": "assistant", "content": response_content})
             data = json.dumps({"type": "result", "content": response_content})
             q.put(f"data: {data}\n\n")
@@ -94,10 +106,17 @@ async def chat_endpoint(request: ChatRequest):
 async def get_history():
     return history
 
+@app.get("/costs")
+async def get_costs():
+    logger = CostLogger()
+    return logger.get_stats(session_id=current_session_id)
+
 @app.delete("/history")
 async def clear_history():
-    global history
+    global history, current_session_id
     history = []
+    current_session_id = str(uuid4())
+    return {"status": "cleared"}
     return {"status": "cleared"}
 
 # Mount static files

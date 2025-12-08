@@ -17,6 +17,6 @@ class AnalysisAgent(BaseAgent):
     def decide_action(self, message, context="", **kwargs):
         rag_response = self.rag.query(message) if self.rag else ""
         prompt_ = prompt("analyse").format(message=message, context=rag_response)
-        analysis_result = self.model.chat(self.system_prompt, prompt_, callback=kwargs.get("callback"))
+        analysis_result = self.model.chat(self.system_prompt, prompt_, callback=kwargs.get("callback"), session_id=kwargs.get("session_id"))
         return analysis_result
     

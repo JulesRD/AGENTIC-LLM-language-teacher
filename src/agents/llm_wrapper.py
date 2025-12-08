@@ -2,10 +2,30 @@ import os
 import time
 
 from marshmallow.utils import timestamp
+from langchain_core.callbacks import BaseCallbackHandler
 
 from src.costs.cost_logger import CostLogger
 # load dotenv
 from dotenv import load_dotenv
+
+class RealTimeCallbackHandler(BaseCallbackHandler):
+    def __init__(self, callback):
+        self.callback = callback
+
+    def on_tool_start(self, serialized, input_str, **kwargs):
+        if self.callback:
+            self.callback({
+                "type": "tool_start",
+                "tool": serialized.get("name"),
+                "input": input_str
+            })
+
+    def on_tool_end(self, output, **kwargs):
+        if self.callback:
+            self.callback({
+                "type": "tool_end",
+                "output": str(output)
+            })
 
 
 
@@ -34,7 +54,7 @@ class LLMWrapper:
     def count_tokens(self, text):
         return self.model.get_num_tokens(text)
 
-    def chat(self, system_prompt, prompt, callback=None):
+    def chat(self, system_prompt, prompt, callback=None, session_id=None):
         # Ici on peut ajouter comptage de tokens, logging, etc.
         input_tokens = self.count_tokens(system_prompt) + self.count_tokens(prompt)
         t0 = time.time()
@@ -54,40 +74,17 @@ class LLMWrapper:
             agent = create_tool_calling_agent(self.model, self.tools, prompt_template)
             agent_executor = AgentExecutor(agent=agent, tools=self.tools, verbose=True, return_intermediate_steps=True)
 
+            # Setup callback handler
+            callbacks = [RealTimeCallbackHandler(callback)] if callback else []
+
             try :
                 print(prompt)
                 # L'agent executor attend généralement une clé "input"
-                response_dict = agent_executor.invoke({
-                    "input": prompt
-                })
+                response_dict = agent_executor.invoke(
+                    {"input": prompt},
+                    config={"callbacks": callbacks}
+                )
                 
-                if "intermediate_steps" in response_dict:
-                    print("\n--- Intermediate Steps ---")
-                    steps_data = []
-                    for step in response_dict["intermediate_steps"]:
-                        if isinstance(step, (tuple, list)) and len(step) == 2:
-                            action, observation = step
-                            step_info = {
-                                "tool": action.tool if hasattr(action, 'tool') else str(action),
-                                "tool_input": action.tool_input if hasattr(action, 'tool_input') else "",
-                                "log": action.log if hasattr(action, 'log') else "",
-                                "observation": str(observation)
-                            }
-                            steps_data.append(step_info)
-
-                            # action est supposé être un AgentAction avec .tool et .tool_input
-                            if hasattr(action, 'tool'):
-                                print(f"Action: {action.tool} ({action.tool_input})")
-                            else:
-                                print(f"Action: {action}")
-                            print(f"Observation: {observation}")
-                        else:
-                            print(f"Step: {step}")
-                    print("--------------------------\n")
-                    
-                    if callback:
-                        callback(steps_data)
-
                 # On enveloppe la réponse textuelle dans un AIMessage pour garder la compatibilité avec le reste du code (.content)
                 response = AIMessage(content=response_dict["output"])
                 status = "success"
@@ -117,7 +114,8 @@ class LLMWrapper:
             prompt_tokens=input_tokens,
             completion_tokens=output_tokens,
             latency_ms=latency_ms,
-            status=status
+            status=status,
+            session_id=session_id
         )
 
         return response.content
