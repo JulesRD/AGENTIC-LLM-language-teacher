@@ -34,7 +34,7 @@ class LLMWrapper:
     def count_tokens(self, text):
         return self.model.get_num_tokens(text)
 
-    def chat(self, system_prompt, prompt):
+    def chat(self, system_prompt, prompt, callback=None):
         # Ici on peut ajouter comptage de tokens, logging, etc.
         input_tokens = self.count_tokens(system_prompt) + self.count_tokens(prompt)
         t0 = time.time()
@@ -52,7 +52,7 @@ class LLMWrapper:
 
             # Création de l'agent et de l'exécuteur
             agent = create_tool_calling_agent(self.model, self.tools, prompt_template)
-            agent_executor = AgentExecutor(agent=agent, tools=self.tools, verbose=True)
+            agent_executor = AgentExecutor(agent=agent, tools=self.tools, verbose=True, return_intermediate_steps=True)
 
             try :
                 print(prompt)
@@ -60,7 +60,34 @@ class LLMWrapper:
                 response_dict = agent_executor.invoke({
                     "input": prompt
                 })
-                print(response_dict)
+                
+                if "intermediate_steps" in response_dict:
+                    print("\n--- Intermediate Steps ---")
+                    steps_data = []
+                    for step in response_dict["intermediate_steps"]:
+                        if isinstance(step, (tuple, list)) and len(step) == 2:
+                            action, observation = step
+                            step_info = {
+                                "tool": action.tool if hasattr(action, 'tool') else str(action),
+                                "tool_input": action.tool_input if hasattr(action, 'tool_input') else "",
+                                "log": action.log if hasattr(action, 'log') else "",
+                                "observation": str(observation)
+                            }
+                            steps_data.append(step_info)
+
+                            # action est supposé être un AgentAction avec .tool et .tool_input
+                            if hasattr(action, 'tool'):
+                                print(f"Action: {action.tool} ({action.tool_input})")
+                            else:
+                                print(f"Action: {action}")
+                            print(f"Observation: {observation}")
+                        else:
+                            print(f"Step: {step}")
+                    print("--------------------------\n")
+                    
+                    if callback:
+                        callback(steps_data)
+
                 # On enveloppe la réponse textuelle dans un AIMessage pour garder la compatibilité avec le reste du code (.content)
                 response = AIMessage(content=response_dict["output"])
                 status = "success"

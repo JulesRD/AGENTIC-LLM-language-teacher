@@ -6,6 +6,16 @@ from langchain_core.documents import Document
 
 
 class SimpleRAG:
+    _instance = None
+
+    @staticmethod
+    def get_instance(llm=None, documents=None, embedding_model="mxbai-embed-large"):
+        if SimpleRAG._instance is None:
+            if llm is None:
+                raise ValueError("LLM is required to initialize SimpleRAG")
+            SimpleRAG._instance = SimpleRAG(llm, documents, embedding_model)
+        return SimpleRAG._instance
+
     def __init__(self, llm, documents=None, embedding_model="mxbai-embed-large"):
         """
         llm : instance de ChatOllama (ton modèle LLM)
@@ -52,6 +62,7 @@ class SimpleRAG:
             | self.prompt
             | self.llm
         )
+
 
     def add_documents(self, new_documents):
         new_docs = [

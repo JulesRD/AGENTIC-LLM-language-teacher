@@ -37,7 +37,7 @@ class ResearchAgent(BaseAgent):
             # Simple fallback if parsing fails
         return [topic]
 
-    def search_crossref(self, query, max_results=5):
+    def search_crossref(self, query, max_results=1):
         url = "https://api.crossref.org/works"
         params = {"query": query, "rows": max_results}
 

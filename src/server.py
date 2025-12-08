@@ -42,7 +42,7 @@ from langchain_core.documents import Document
 document = Document(
     page_content="Hello, world!", metadata={"source": "https://example.com"}
 )
-rag = SimpleRAG(LLMWrapper().model, documents=[document], embedding_model="mxbai-embed-large")
+rag = SimpleRAG.get_instance(LLMWrapper().model, documents=[document], embedding_model="mxbai-embed-large")
 try:
     # Initialize Agents
     planner_agent = AnalysisAgent(rag=rag)
@@ -63,13 +63,13 @@ async def chat_endpoint(request: ChatRequest):
     history.append({"role": "user", "content": user_msg})
     q = queue.Queue()
 
-    def progress_callback(step, percentage):
-        data = json.dumps({"type": "progress", "step": step, "percentage": percentage})
+    def progress_callback(steps_data):
+        data = json.dumps({"type": "reflection", "content": steps_data})
         q.put(f"data: {data}\n\n")
 
     def worker():
         try:
-            response_content = planner_agent.handle_user_message(user_msg, progress_callback=progress_callback)
+            response_content = planner_agent.handle_user_message(user_msg, callback=progress_callback)
             history.append({"role": "assistant", "content": response_content})
             data = json.dumps({"type": "result", "content": response_content})
             q.put(f"data: {data}\n\n")

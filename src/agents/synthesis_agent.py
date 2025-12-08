@@ -49,12 +49,13 @@ class SynthesisAgent(BaseAgent):
     def decide_action(self, message):
         try:
             parsed = json.loads(message)
-            if "subject" not in parsed or "articles" not in parsed:
+            # Allow 'topic' or 'subject'
+            topic = parsed.get("subject") or parsed.get("topic")
+            if not topic or "articles" not in parsed:
                 raise ValueError("Invalid input format")
         except Exception:
-            return "ERROR: SynthesisAgent expected a JSON string containing 'topic' and 'articles'."
+            return "ERROR: SynthesisAgent expected a JSON string containing 'topic' (or 'subject') and 'articles'."
 
-        topic = parsed.get("subject")
         articles = parsed.get("articles", [])
 
         # Summarize each article individually

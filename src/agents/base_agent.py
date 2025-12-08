@@ -43,6 +43,6 @@ class BaseAgent:
             The agent's response
         """
         prompt = f"\nReceived message: {message}\nResponse:"
-        response = self.model.chat(self.system_prompt, prompt)
+        response = self.model.chat(self.system_prompt, prompt, callback=kwargs.get("callback"))
         return response
 
