@@ -16,10 +16,8 @@ from src.tools.simple_rag_tool import SimpleRAG
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 from src.agents.llm_wrapper import LLMWrapper
-from src.agents.planner_agent import PlannerAgent
 from src.agents.research_agent import ResearchAgent
-from src.agents.synthesis_agent import SynthesisAgent
-from src.agents.fact_checker_agent import FactCheckerAgent
+from src.agents.analyse  import AnalysisAgent
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -39,14 +37,15 @@ app.add_middleware(
 # State
 history = []
 planner_agent = None
-
+# documents : langchain_core.documents.Document
+from langchain_core.documents import Document
+document = Document(
+    page_content="Hello, world!", metadata={"source": "https://example.com"}
+)
+rag = SimpleRAG(LLMWrapper().model, documents=[document], embedding_model="mxbai-embed-large")
 try:
     # Initialize Agents
-    rag = SimpleRAG(LLMWrapper().model, embedding_model="mxbai-embed-large")
-    research_agent = ResearchAgent(rag, "Research")
-    synthesis_agent = SynthesisAgent(rag, "Synthesis")
-    fact_checker_agent = FactCheckerAgent(rag, "FactChecker")
-    planner_agent = PlannerAgent("Planner", research_agent, synthesis_agent, fact_checker_agent)
+    planner_agent = AnalysisAgent(rag=rag)
     print("Agents initialized successfully.")
 except Exception as e:
     print(f"Error initializing Agents: {e}")
@@ -60,10 +59,8 @@ class ChatRequest(BaseModel):
 async def chat_endpoint(request: ChatRequest):
     if not planner_agent:
         raise HTTPException(status_code=500, detail="Planner Agent not initialized")
-    
     user_msg = request.message
     history.append({"role": "user", "content": user_msg})
-    
     q = queue.Queue()
 
     def progress_callback(step, percentage):

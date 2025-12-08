@@ -23,6 +23,7 @@ class SimpleRAG:
             )
             for d in documents
         ]
+        print(len(self.documents), "documents loaded into RAG.")
         # 1. Embeddings open-source (OllamaEmbed)
         self.embeddings = OllamaEmbeddings(model=embedding_model)
 
@@ -64,4 +65,5 @@ class SimpleRAG:
         self.vs.add_documents(new_docs)
 
     def query(self, question):
-        return self.chain.invoke(question)
+        return ""
+        # return self.chain.invoke(question)

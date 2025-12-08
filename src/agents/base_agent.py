@@ -8,11 +8,11 @@ class BaseAgent:
     Handles user messages and provides a decision-making interface through the decide_action method.
     """
     
-    def __init__(self, name, system_prompt):
+    def __init__(self, name, system_prompt, tools=None):
         self.name = name
         self.id = str(uuid4())
         self.system_prompt = system_prompt
-        self.model = LLMWrapper()
+        self.model = LLMWrapper(tools=tools)
 
     def handle_user_message(self, message, **kwargs):
         """
@@ -45,3 +45,4 @@ class BaseAgent:
         prompt = f"\nReceived message: {message}\nResponse:"
         response = self.model.chat(self.system_prompt, prompt)
         return response
+

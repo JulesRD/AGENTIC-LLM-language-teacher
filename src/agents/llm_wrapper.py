@@ -10,11 +10,10 @@ from dotenv import load_dotenv
 
 
 class LLMWrapper:
-    def __init__(self):
+    def __init__(self, tools=None):
         load_dotenv()
         self.model_name = os.getenv("MODEL", "ollama").lower()
         self.logger = CostLogger()
-
         if self.model_name.startswith("m"):
             from langchain_mistralai import ChatMistralAI
             self.model = ChatMistralAI(
@@ -28,6 +27,9 @@ class LLMWrapper:
                 model=self.model_name,
                 temperature=0
             )
+        self.tools = tools
+
+
 
     def count_tokens(self, text):
         return self.model.get_num_tokens(text)
@@ -36,16 +38,46 @@ class LLMWrapper:
         # Ici on peut ajouter comptage de tokens, logging, etc.
         input_tokens = self.count_tokens(system_prompt) + self.count_tokens(prompt)
         t0 = time.time()
+        if self.tools:
+            from langchain_classic.agents import AgentExecutor, create_tool_calling_agent
+            from langchain_core.prompts import ChatPromptTemplate
+            from langchain_core.messages import AIMessage
 
-        try :
-            response = self.model.invoke([
+            # Création d'un prompt template adapté aux agents
+            prompt_template = ChatPromptTemplate.from_messages([
                 ("system", system_prompt),
-                ("human", prompt)
+                ("human", "{input}"),
+                ("placeholder", "{agent_scratchpad}"),
             ])
-            status = "success"
-        except Exception as e :
-            response = str(e)
-            status = "error"
+
+            # Création de l'agent et de l'exécuteur
+            agent = create_tool_calling_agent(self.model, self.tools, prompt_template)
+            agent_executor = AgentExecutor(agent=agent, tools=self.tools, verbose=True)
+
+            try :
+                print(prompt)
+                # L'agent executor attend généralement une clé "input"
+                response_dict = agent_executor.invoke({
+                    "input": prompt
+                })
+                print(response_dict)
+                # On enveloppe la réponse textuelle dans un AIMessage pour garder la compatibilité avec le reste du code (.content)
+                response = AIMessage(content=response_dict["output"])
+                status = "success"
+            except Exception as e :
+                response = AIMessage(content=str(e))
+                status = "error"
+                raise e
+        else :
+            try :
+                response = self.model.invoke([
+                    ("system", system_prompt),
+                    ("human", prompt)
+                ])
+                status = "success"
+            except Exception as e :
+                response = str(e)
+                status = "error"
 
         latency_ms = (time.time() - t0) * 1000
         output_tokens = self.count_tokens(response.content)
