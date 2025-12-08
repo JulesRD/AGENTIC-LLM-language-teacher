@@ -27,6 +27,13 @@ class RealTimeCallbackHandler(BaseCallbackHandler):
                 "output": str(output)
             })
 
+    def on_llm_new_token(self, token: str, **kwargs) -> None:
+        if self.callback:
+            self.callback({
+                "type": "thought",
+                "content": token
+            })
+
 
 
 class LLMWrapper:
@@ -39,13 +46,15 @@ class LLMWrapper:
             self.model = ChatMistralAI(
                 model=self.model_name,
                 api_key=os.getenv("MISTRAL_API_KEY"),
-                temperature=0
+                temperature=0,
+                streaming=True
             )
         else:
             from langchain_ollama import ChatOllama
             self.model = ChatOllama(
                 model=self.model_name,
-                temperature=0
+                temperature=0,
+                streaming=True
             )
         self.tools = tools
 
