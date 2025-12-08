@@ -9,10 +9,16 @@ from src.costs.cost_logger import CostLogger
 from dotenv import load_dotenv
 
 class RealTimeCallbackHandler(BaseCallbackHandler):
-    def __init__(self, callback):
+    def __init__(self, callback, stop_event=None):
         self.callback = callback
+        self.stop_event = stop_event
+
+    def check_stop(self):
+        if self.stop_event and self.stop_event.is_set():
+            raise InterruptedError("Generation stopped by user.")
 
     def on_tool_start(self, serialized, input_str, **kwargs):
+        self.check_stop()
         if self.callback:
             self.callback({
                 "type": "tool_start",
@@ -21,6 +27,7 @@ class RealTimeCallbackHandler(BaseCallbackHandler):
             })
 
     def on_tool_end(self, output, **kwargs):
+        self.check_stop()
         if self.callback:
             self.callback({
                 "type": "tool_end",
@@ -28,6 +35,7 @@ class RealTimeCallbackHandler(BaseCallbackHandler):
             })
 
     def on_llm_new_token(self, token: str, **kwargs) -> None:
+        self.check_stop()
         if self.callback:
             self.callback({
                 "type": "thought",
@@ -63,7 +71,7 @@ class LLMWrapper:
     def count_tokens(self, text):
         return self.model.get_num_tokens(text)
 
-    def chat(self, system_prompt, prompt, callback=None, session_id=None):
+    def chat(self, system_prompt, prompt, callback=None, session_id=None, max_iterations=15, stop_event=None):
         # Ici on peut ajouter comptage de tokens, logging, etc.
         input_tokens = self.count_tokens(system_prompt) + self.count_tokens(prompt)
         t0 = time.time()
@@ -81,10 +89,16 @@ class LLMWrapper:
 
             # Création de l'agent et de l'exécuteur
             agent = create_tool_calling_agent(self.model, self.tools, prompt_template)
-            agent_executor = AgentExecutor(agent=agent, tools=self.tools, verbose=True, return_intermediate_steps=True)
+            agent_executor = AgentExecutor(
+                agent=agent, 
+                tools=self.tools, 
+                verbose=True, 
+                return_intermediate_steps=True,
+                max_iterations=max_iterations
+            )
 
             # Setup callback handler
-            callbacks = [RealTimeCallbackHandler(callback)] if callback else []
+            callbacks = [RealTimeCallbackHandler(callback, stop_event)] if callback else []
 
             try :
                 print(prompt)
@@ -97,23 +111,34 @@ class LLMWrapper:
                 # On enveloppe la réponse textuelle dans un AIMessage pour garder la compatibilité avec le reste du code (.content)
                 response = AIMessage(content=response_dict["output"])
                 status = "success"
+            except InterruptedError:
+                response = AIMessage(content="Generation stopped by user.")
+                status = "stopped"
             except Exception as e :
                 response = AIMessage(content=str(e))
                 status = "error"
                 raise e
         else :
             try :
+                # For non-agent chat, we can't easily interrupt invoke() unless we use a custom callback or async
+                # But we can check stop_event before invoking
+                if stop_event and stop_event.is_set():
+                    raise InterruptedError("Generation stopped by user.")
+                    
                 response = self.model.invoke([
                     ("system", system_prompt),
                     ("human", prompt)
                 ])
                 status = "success"
+            except InterruptedError:
+                response = "Generation stopped by user."
+                status = "stopped"
             except Exception as e :
                 response = str(e)
                 status = "error"
 
         latency_ms = (time.time() - t0) * 1000
-        output_tokens = self.count_tokens(response.content)
+        output_tokens = self.count_tokens(response.content if hasattr(response, 'content') else response)
 
         # LOG AUTOMATIQUE
         self.logger.log(
@@ -127,4 +152,4 @@ class LLMWrapper:
             session_id=session_id
         )
 
-        return response.content
+        return response.content if hasattr(response, 'content') else response

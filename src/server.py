@@ -9,6 +9,7 @@ import json
 import queue
 import threading
 import time
+from typing import Optional
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -22,6 +23,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".
 from src.agents.llm_wrapper import LLMWrapper
 from src.agents.research_agent import ResearchAgent
 from src.agents.analyse  import AnalysisAgent
+from src.agents.formatting_agent import FormattingAgent
 from src.costs.cost_logger import CostLogger
 from dotenv import load_dotenv
 
@@ -45,6 +47,9 @@ from uuid import uuid4
 history = []
 current_session_id = str(uuid4())
 planner_agent = None
+formatting_agent = None
+active_sessions = {} # Map session_id -> stop_event
+
 # documents : langchain_core.documents.Document
 from langchain_core.documents import Document
 document = Document(
@@ -54,9 +59,99 @@ rag = SimpleRAG.get_instance(LLMWrapper().model, documents=[document], embedding
 try:
     # Initialize Agents
     planner_agent = AnalysisAgent(rag=rag)
+    formatting_agent = FormattingAgent()
     print("Agents initialized successfully.")
 except Exception as e:
     print(f"Error initializing Agents: {e}")
+
+SYSTEM_PROMPT = "You are a helpful assistant."
+
+class ChatRequest(BaseModel):
+    message: str
+    max_iterations: Optional[int] = 15
+
+class StopRequest(BaseModel):
+    session_id: Optional[str] = None
+
+@app.post("/stop")
+async def stop_endpoint(request: StopRequest):
+    # If session_id provided, stop that specific session
+    # Otherwise stop the current global session
+    target_session = request.session_id or current_session_id
+    
+    if target_session in active_sessions:
+        active_sessions[target_session].set()
+        return {"status": "stopped", "session_id": target_session}
+    
+    return {"status": "not_found", "session_id": target_session}
+
+@app.post("/chat")
+async def chat_endpoint(request: ChatRequest):
+    if not planner_agent:
+        raise HTTPException(status_code=500, detail="Planner Agent not initialized")
+    user_msg = request.message
+    history.append({"role": "user", "content": user_msg})
+    q = queue.Queue()
+
+    # Create stop event for this request
+    stop_event = threading.Event()
+    active_sessions[current_session_id] = stop_event
+
+    def progress_callback(event_data):
+        data = json.dumps({"type": "reflection_update", "content": event_data})
+        q.put(f"data: {data}\n\n")
+
+    def worker():
+        try:
+            response_data = planner_agent.handle_user_message(
+                user_msg, 
+                callback=progress_callback,
+                session_id=current_session_id,
+                max_iterations=request.max_iterations,
+                stop_event=stop_event
+            )
+            
+            # Handle both string (legacy) and dict (new) responses
+            if isinstance(response_data, dict):
+                raw_content = response_data.get("content", "")
+                available_sources = response_data.get("sources", [])
+                
+                # Call Formatting Agent here
+                formatted_content, used_sources = formatting_agent.format_response(raw_content, available_sources)
+                
+                history.append({"role": "assistant", "content": formatted_content})
+                data = json.dumps({
+                    "type": "result", 
+                    "content": formatted_content,
+                    "sources": used_sources
+                })
+                q.put(f"data: {data}\n\n")
+            else:
+                # Legacy string response
+                history.append({"role": "assistant", "content": response_data})
+                data = json.dumps({"type": "result", "content": response_data})
+                q.put(f"data: {data}\n\n")
+                
+        except Exception as e:
+            print(f"Error in worker: {e}")
+            data = json.dumps({"type": "error", "content": str(e)})
+            q.put(f"data: {data}\n\n")
+        finally:
+            q.put(None)  # Signal end
+            if current_session_id in active_sessions:
+                del active_sessions[current_session_id]
+
+    t = threading.Thread(target=worker)
+    t.start()
+
+    def stream():
+        while True:
+            msg = q.get()
+            if msg is None:
+                break
+            yield msg
+
+    return StreamingResponse(stream(), media_type="text/event-stream")
 
 SYSTEM_PROMPT = "You are a helpful assistant."
 
@@ -77,13 +172,30 @@ async def chat_endpoint(request: ChatRequest):
 
     def worker():
         try:
-            response_content = planner_agent.handle_user_message(
+            response_data = planner_agent.handle_user_message(
                 user_msg, 
                 callback=progress_callback,
                 session_id=current_session_id
             )
-            history.append({"role": "assistant", "content": response_content})
-            data = json.dumps({"type": "result", "content": response_content})
+            
+            # Handle both string (legacy) and dict (new) responses
+            if isinstance(response_data, dict):
+                raw_content = response_data.get("content", "")
+                available_sources = response_data.get("sources", [])
+                
+                # Call Formatting Agent here
+                formatted_content, used_sources = formatting_agent.format_response(raw_content, available_sources)
+                
+                history.append({"role": "assistant", "content": formatted_content})
+                data = json.dumps({
+                    "type": "result", 
+                    "content": formatted_content,
+                    "sources": used_sources
+                })
+            else:
+                history.append({"role": "assistant", "content": response_data})
+                data = json.dumps({"type": "result", "content": response_data})
+                
             q.put(f"data: {data}\n\n")
         except Exception as e:
             error_data = json.dumps({"type": "error", "content": str(e)})

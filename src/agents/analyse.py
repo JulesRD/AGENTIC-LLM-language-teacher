@@ -15,8 +15,24 @@ class AnalysisAgent(BaseAgent):
 
 
     def decide_action(self, message, context="", **kwargs):
-        rag_response = self.rag.query(message) if self.rag else ""
-        prompt_ = prompt("analyse").format(message=message, context=rag_response)
-        analysis_result = self.model.chat(self.system_prompt, prompt_, callback=kwargs.get("callback"), session_id=kwargs.get("session_id"))
-        return analysis_result
+        context_str = ""
+        sources = []
+        if self.rag:
+            context_str, sources = self.rag.search(message)
+
+        prompt_ = prompt("analyse").format(message=message, context=context_str)
+        analysis_result = self.model.chat(
+            self.system_prompt, 
+            prompt_, 
+            callback=kwargs.get("callback"), 
+            session_id=kwargs.get("session_id"),
+            max_iterations=kwargs.get("max_iterations", 15),
+            stop_event=kwargs.get("stop_event")
+        )
+        
+        # Return a dict instead of string to pass sources separately
+        return {
+            "content": analysis_result,
+            "sources": sources
+        }
     

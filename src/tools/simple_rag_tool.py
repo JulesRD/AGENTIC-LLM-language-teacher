@@ -75,6 +75,28 @@ class SimpleRAG:
         ]
         self.vs.add_documents(new_docs)
 
+    def search(self, question):
+        """
+        Retrieves relevant documents and returns the context string and a list of unique sources.
+        """
+        docs = self.retriever.invoke(question)
+        context_parts = []
+        sources = []
+        seen_urls = set()
+        
+        for d in docs:
+            url = d.metadata.get("source") or d.metadata.get("link") or "Unknown"
+            title = d.metadata.get("name") or d.metadata.get("title") or "Unknown Source"
+            
+            if url not in seen_urls and url != "Unknown":
+                sources.append({"title": title, "url": url})
+                seen_urls.add(url)
+                
+            context_parts.append(f"Source: {url}\nTitle: {title}\nContent: {d.page_content}")
+            
+        context = "\n\n---\n\n".join(context_parts)
+        return context, sources
+
     def query(self, question):
         return ""
         # return self.chain.invoke(question)

@@ -18,6 +18,7 @@ def talk_synthesis(data: str) -> str:
     Ask the synthesis agent to summarize and synthesize information from scientific articles.
     Input 'data' MUST be a JSON string with the following structure:
     {
+        "user_request": "The original user request to focus the synthesis on",
         "topic": "The topic of the synthesis",
         "articles": [
             {

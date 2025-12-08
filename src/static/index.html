@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LLM Chat</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
     <style>
         :root {
             --primary-color: #0084ff;
@@ -211,6 +214,8 @@
             padding: 1rem;
             background-color: #fff;
             border-top: 1px solid #eee;
+            max-height: 300px;
+            overflow-y: auto;
         }
 
         .step-item {
@@ -251,6 +256,90 @@
             border-top: 1px solid #eee;
             padding-top: 8px;
             font-style: italic;
+        }
+
+        .step-thought {
+            margin-top: 8px;
+            font-size: 0.9rem;
+            color: #555;
+            font-style: italic;
+            border-left: 3px solid #ddd;
+            padding-left: 10px;
+            white-space: pre-wrap;
+        }
+
+        /* Sources Styles */
+        .sources-container {
+            margin-top: 1.5rem;
+            padding-top: 1rem;
+            border-top: 1px solid #eee;
+        }
+
+        .sources-container h3 {
+            font-size: 1rem;
+            color: #444;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .sources-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 1rem;
+        }
+
+        .source-card {
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            padding: 0.8rem;
+            background: #f8f9fa;
+            border: 1px solid #eee;
+            border-radius: 8px;
+            text-decoration: none;
+            color: inherit;
+            transition: all 0.2s ease;
+        }
+
+        .source-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            border-color: #e0e0e0;
+            background: #fff;
+        }
+
+        .source-icon {
+            font-size: 1.2rem;
+            background: #fff;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .source-info {
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .source-title {
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: #2c3e50;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-bottom: 0.2rem;
+        }
+
+        .source-domain {
+            font-size: 0.75rem;
+            color: #888;
         }
 
         /* Floating Input Area */
@@ -381,6 +470,10 @@
                 <div class="stat-title">Total Calls</div>
                 <div class="stat-value" id="calls-total">0</div>
             </div>
+            <div class="stat-card">
+                <div class="stat-title">Max Iterations</div>
+                <input type="number" id="max-iter-input" value="15" min="1" max="50" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px; box-sizing: border-box;">
+            </div>
         </aside>
     </div>
 
@@ -389,6 +482,24 @@
         const messageInput = document.getElementById('message-input');
         const sendBtn = document.getElementById('send-btn');
         const clearBtn = document.getElementById('clear-btn');
+        const maxIterInput = document.getElementById('max-iter-input');
+
+        // Create Stop Button dynamically or find it if added to HTML
+        const stopBtn = document.createElement('button');
+        stopBtn.id = 'stop-btn';
+        stopBtn.textContent = 'Stop';
+        stopBtn.style.display = 'none';
+        stopBtn.style.backgroundColor = '#dc3545';
+        stopBtn.style.color = 'white';
+        stopBtn.style.border = 'none';
+        stopBtn.style.borderRadius = '24px';
+        stopBtn.style.padding = '0.8rem 1.5rem';
+        stopBtn.style.cursor = 'pointer';
+        stopBtn.style.fontWeight = '600';
+        stopBtn.style.marginLeft = '0.5rem';
+        
+        // Insert Stop Button after Send Button
+        sendBtn.parentNode.insertBefore(stopBtn, sendBtn.nextSibling);
 
         // Stats elements
         const elCostTotal = document.getElementById('cost-total');
@@ -401,10 +512,24 @@
         let currentReflectionContent = null;
         let currentStepDiv = null;
 
+        function renderMath(element) {
+            renderMathInElement(element, {
+                delimiters: [
+                    {left: '$$', right: '$$', display: true},
+                    {left: '$', right: '$', display: false},
+                    {left: '\\(', right: '\\)', display: false},
+                    {left: '\\[', right: '\\]', display: true},
+                    {left: '[', right: ']', display: true}
+                ],
+                throwOnError: false
+            });
+        }
+
         function appendMessage(role, content) {
             const div = document.createElement('div');
             div.className = `message ${role}`;
             div.innerHTML = marked.parse(content);
+            renderMath(div);
             chatContainer.appendChild(div);
             scrollToBottom();
         }
@@ -440,6 +565,8 @@
                 currentReflectionContent = createReflectionBlock();
             }
 
+            const contentDiv = currentReflectionContent;
+
             if (data.type === 'tool_start') {
                 const stepDiv = document.createElement('div');
                 stepDiv.className = 'step-item';
@@ -468,7 +595,18 @@
                     currentStepDiv.appendChild(output);
                     currentStepDiv = null;
                 }
+            } else if (data.type === 'thought') {
+                let lastChild = currentReflectionContent.lastElementChild;
+                if (!lastChild || !lastChild.classList.contains('step-thought')) {
+                    lastChild = document.createElement('div');
+                    lastChild.className = 'step-thought';
+                    currentReflectionContent.appendChild(lastChild);
+                }
+                lastChild.textContent += data.content;
             }
+            
+            // Always scroll to bottom as requested
+            contentDiv.scrollTop = contentDiv.scrollHeight;
             scrollToBottom();
         }
 
@@ -501,22 +639,145 @@
             }
         }
 
-        async function sendMessage() {
-            const text = messageInput.value.trim();
+        async function streamMessage(role, content, sources = null) {
+            const div = document.createElement('div');
+            div.className = `message ${role}`;
+            chatContainer.appendChild(div);
+            scrollToBottom();
+
+            // Fast streaming effect
+            const delay = 10; // ms per chunk
+            const chunkSize = 5; // chars per chunk
+            let i = 0;
+            let accumulatedText = "";
+            
+            return new Promise((resolve) => {
+                const interval = setInterval(() => {
+                    if (i >= content.length) {
+                        clearInterval(interval);
+                        // Final render with Markdown and Math
+                        div.innerHTML = marked.parse(content);
+                        renderMath(div);
+                        
+                        // Append sources if any
+                        if (sources && sources.length > 0) {
+                            const sourcesHtml = `
+                                <div class='sources-container'>
+                                    <h3>📚 Sources</h3>
+                                    <div class='sources-grid'>
+                                        ${sources.map(s => {
+                                            const domain = s.url.includes('http') ? s.url.split('/')[2] : 'External Source';
+                                            return `
+                                                <a href="${s.url}" target="_blank" class="source-card">
+                                                    <div class="source-icon">📄</div>
+                                                    <div class="source-info">
+                                                        <div class="source-title">${s.title}</div>
+                                                        <div class="source-domain">${domain}</div>
+                                                    </div>
+                                                </a>
+                                            `;
+                                        }).join('')}
+                                    </div>
+                                </div>
+                            `;
+                            const sourcesDiv = document.createElement('div');
+                            sourcesDiv.innerHTML = sourcesHtml;
+                            div.appendChild(sourcesDiv);
+                        }
+                        
+                        scrollToBottom();
+                        resolve();
+                    } else {
+                        const chunk = content.substring(i, i + chunkSize);
+                        accumulatedText += chunk;
+                        
+                        // Parse markdown on every step to avoid showing raw syntax
+                        // This might be heavy but ensures "good formatting" during stream
+                        div.innerHTML = marked.parse(accumulatedText);
+                        
+                        // Optional: Render math during stream? 
+                        // It might cause flickering, but let's try it if user wants "good formatting"
+                        // renderMath(div); 
+                        
+                        i += chunkSize;
+                        scrollToBottom();
+                    }
+                }, delay);
+            });
+        }
+
+        function createRetryButton(text) {
+            const div = document.createElement('div');
+            div.className = 'message assistant';
+            div.style.backgroundColor = 'transparent';
+            div.style.padding = '0';
+            div.style.boxShadow = 'none';
+            
+            const btn = document.createElement('button');
+            btn.textContent = '🔄 Retry Generation';
+            btn.className = 'retry-btn';
+            btn.style.padding = '0.8rem 1.5rem';
+            btn.style.backgroundColor = '#6c757d';
+            btn.style.color = 'white';
+            btn.style.border = 'none';
+            btn.style.borderRadius = '24px';
+            btn.style.cursor = 'pointer';
+            btn.style.fontSize = '0.9rem';
+            btn.style.display = 'flex';
+            btn.style.alignItems = 'center';
+            btn.style.gap = '0.5rem';
+            btn.style.transition = 'background-color 0.2s';
+            
+            btn.onmouseover = () => btn.style.backgroundColor = '#5a6268';
+            btn.onmouseout = () => btn.style.backgroundColor = '#6c757d';
+            
+            btn.onclick = () => {
+                div.remove();
+                sendMessage(text);
+            };
+            
+            div.appendChild(btn);
+            chatContainer.appendChild(div);
+            scrollToBottom();
+        }
+
+        async function sendMessage(retryText = null) {
+            // If called from event listener, retryText is an Event object
+            const isRetry = typeof retryText === 'string';
+            const text = isRetry ? retryText : messageInput.value.trim();
+            
             if (!text) return;
 
-            appendMessage('user', text);
-            messageInput.value = '';
+            if (!isRetry) {
+                appendMessage('user', text);
+                messageInput.value = '';
+            }
+            
             messageInput.disabled = true;
-            sendBtn.disabled = true;
+            sendBtn.style.display = 'none';
+            stopBtn.style.display = 'block';
             
             currentReflectionContent = null; 
+            let isStopped = false;
+
+            stopBtn.onclick = async () => {
+                isStopped = true;
+                try {
+                    await fetch('/stop', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}' });
+                    appendMessage('assistant', '🛑 Generation stopped by user.');
+                } catch (e) {
+                    console.error("Failed to stop", e);
+                }
+            };
 
             try {
                 const response = await fetch('/chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: text })
+                    body: JSON.stringify({ 
+                        message: text,
+                        max_iterations: parseInt(maxIterInput.value) || 15
+                    })
                 });
                 
                 if (!response.ok) throw new Error('Network response was not ok');
@@ -526,6 +787,7 @@
                 let buffer = '';
 
                 while (true) {
+                    if (isStopped) break;
                     const { done, value } = await reader.read();
                     if (done) break;
                     
@@ -545,14 +807,33 @@
                                     updateReflection(data.content);
                                 } else if (data.type === 'result') {
                                     if (currentReflectionContent) {
-                                        currentReflectionContent.parentElement.open = false;
-                                        currentReflectionContent.parentElement.querySelector('summary span').textContent = '🧠 Thinking Process (Complete)';
+                                        // Keep the thinking process open and update title
+                                        const details = currentReflectionContent.parentElement;
+                                        details.querySelector('summary span').textContent = '🧠 Thinking Process (Complete)';
+                                        
+                                        // Render math in the thinking process
+                                        renderMath(currentReflectionContent);
+                                        
+                                        // Force open AFTER rendering to ensure it stays visible
+                                        details.open = true;
+                                        // Ensure it stays open by setting attribute explicitly
+                                        details.setAttribute('open', '');
                                     }
-                                    appendMessage('assistant', data.content);
+                                    
+                                    // Use streaming effect for the final result
+                                    await streamMessage('assistant', data.content, data.sources);
+                                    
+                                    // Re-enforce thinking process visibility after stream
+                                    if (currentReflectionContent) {
+                                        const details = currentReflectionContent.parentElement;
+                                        details.open = true;
+                                        details.setAttribute('open', '');
+                                    }
+
                                     // Update costs after response
                                     updateCosts();
                                 } else if (data.type === 'error') {
-                                    appendMessage('assistant', 'Error: ' + data.content);
+                                    createRetryButton(text);
                                 }
                             } catch (e) {
                                 console.error('Error parsing SSE data', e);
@@ -561,11 +842,16 @@
                     }
                 }
             } catch (e) {
-                appendMessage('assistant', 'Error: ' + e.message);
+                if (!isStopped) {
+                    console.error(e);
+                    createRetryButton(text);
+                }
             } finally {
                 messageInput.disabled = false;
-                sendBtn.disabled = false;
+                sendBtn.style.display = 'block';
+                stopBtn.style.display = 'none';
                 messageInput.focus();
+                stopBtn.onclick = null;
             }
         }
 

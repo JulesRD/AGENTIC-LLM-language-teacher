@@ -43,6 +43,13 @@ class BaseAgent:
             The agent's response
         """
         prompt = f"\nReceived message: {message}\nResponse:"
-        response = self.model.chat(self.system_prompt, prompt, callback=kwargs.get("callback"), session_id=kwargs.get("session_id"))
+        response = self.model.chat(
+            self.system_prompt, 
+            prompt, 
+            callback=kwargs.get("callback"), 
+            session_id=kwargs.get("session_id"),
+            max_iterations=kwargs.get("max_iterations", 15),
+            stop_event=kwargs.get("stop_event")
+        )
         return response
 

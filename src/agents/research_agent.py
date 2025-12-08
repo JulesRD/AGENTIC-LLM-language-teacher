@@ -85,6 +85,7 @@ class ResearchAgent(BaseAgent):
                 articles.append({
                     "name": item.get("title", "Unknown"),
                     "link": item.get("url", "Unknown"),
+                    "source": item.get("url", "Unknown"), # For RAG compatibility
                     "author": ", ".join(a.get("name") for a in item.get("authors", [])),
                     "content": item.get("abstract", "(No abstract available)")
                 })

@@ -1,9 +1,9 @@
-Voici la demande de l'utilisateur :
+Here is the user's request:
 {message}
 
-Voici le contexte issu de la recherche initiale (RAG) :
+Here is the context from the initial research (RAG):
 {context}
 
-Détermine si l'information est complète.
-Si oui, lance la synthèse.
-Si non (ou si douteuse), lance la recherche.
+Determine if the information is complete.
+If yes, launch the synthesis.
+If no (or if doubtful), launch the research.
