@@ -108,9 +108,9 @@ class ResearchAgent(BaseAgent):
         # This method can be used to add articles to a RAG tool if needed
         self.rag.add_documents(articles)
 
-    def decide_action(self, message, source="user", sender=None):
+    def decide_action(self, message, source="user", sender=None, max_results=5):
         # Here we process the request as a given topic
         queries = self.generate_queries(message)
-        articles = self.fetch_articles(queries)
+        articles = self.fetch_articles(queries, max_results)
         self.add_articles_to_rag(articles)
         return json.dumps(articles, ensure_ascii=False, indent=2)

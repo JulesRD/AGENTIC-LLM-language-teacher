@@ -25,7 +25,9 @@ from src.agents.research_agent import ResearchAgent
 from src.agents.analyse  import AnalysisAgent
 from src.agents.formatting_agent import FormattingAgent
 from src.costs.cost_logger import CostLogger
+from src.tools.agent_tools import max_articles_context
 from dotenv import load_dotenv
+import contextvars
 
 # Load environment variables
 load_dotenv()
@@ -69,6 +71,7 @@ SYSTEM_PROMPT = "You are a helpful assistant."
 class ChatRequest(BaseModel):
     message: str
     max_iterations: Optional[int] = 15
+    max_articles: Optional[int] = 5
 
 class StopRequest(BaseModel):
     session_id: Optional[str] = None
@@ -96,13 +99,36 @@ async def chat_endpoint(request: ChatRequest):
     # Create stop event for this request
     stop_event = threading.Event()
     active_sessions[current_session_id] = stop_event
+    
+    # Set context var for this request
+    token = max_articles_context.set(request.max_articles)
+    
+    # Capture context to run in thread
+    ctx = contextvars.copy_context()
 
     def progress_callback(event_data):
+        # Handle direct status updates
+        if event_data.get("type") == "status":
+            data = json.dumps(event_data)
+            q.put(f"data: {data}\n\n")
+            return
+
+        # Handle tool-based status updates
+        if event_data.get("type") == "tool_start":
+            tool_name = event_data.get("tool", "")
+            if "research" in tool_name.lower():
+                q.put(f"data: {json.dumps({'type': 'status', 'status': 'Researching...'})}\n\n")
+            elif "synthesis" in tool_name.lower():
+                q.put(f"data: {json.dumps({'type': 'status', 'status': 'Synthesizing...'})}\n\n")
+
         data = json.dumps({"type": "reflection_update", "content": event_data})
         q.put(f"data: {data}\n\n")
 
     def worker():
         try:
+            # Initial status
+            q.put(f"data: {json.dumps({'type': 'status', 'status': 'Analyzing...'})}\n\n")
+            
             response_data = planner_agent.handle_user_message(
                 user_msg, 
                 callback=progress_callback,
@@ -117,6 +143,7 @@ async def chat_endpoint(request: ChatRequest):
                 available_sources = response_data.get("sources", [])
                 
                 # Call Formatting Agent here
+                q.put(f"data: {json.dumps({'type': 'status', 'status': 'Formatting response...'})}\n\n")
                 formatted_content, used_sources = formatting_agent.format_response(raw_content, available_sources)
                 
                 history.append({"role": "assistant", "content": formatted_content})
@@ -140,8 +167,15 @@ async def chat_endpoint(request: ChatRequest):
             q.put(None)  # Signal end
             if current_session_id in active_sessions:
                 del active_sessions[current_session_id]
+            
+            # Reset context var (though in thread it doesn't matter much, but good practice if reused)
+            # Actually we can't reset in the thread for the parent, but we can reset in parent finally block if we waited.
+            # Since we don't wait, we rely on contextvars being thread-local or copied.
 
-    t = threading.Thread(target=worker)
+    def worker_wrapper():
+        ctx.run(worker)
+
+    t = threading.Thread(target=worker_wrapper)
     t.start()
 
     def stream():
