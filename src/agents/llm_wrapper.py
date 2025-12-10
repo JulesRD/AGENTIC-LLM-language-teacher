@@ -59,11 +59,16 @@ class LLMWrapper:
             )
         else:
             from langchain_ollama import ChatOllama
-            self.model = ChatOllama(
-                model=self.model_name,
-                temperature=0,
-                streaming=True
-            )
+            ollama_host = os.getenv("OLLAMA_HOST")
+            kwargs = {
+                "model": self.model_name,
+                "temperature": 0,
+                "streaming": True
+            }
+            if ollama_host:
+                kwargs["base_url"] = ollama_host
+                
+            self.model = ChatOllama(**kwargs)
         self.tools = tools
 
 

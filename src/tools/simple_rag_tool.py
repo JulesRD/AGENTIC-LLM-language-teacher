@@ -3,7 +3,10 @@ from langchain_ollama import OllamaEmbeddings
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.documents import Document
+import os
+from dotenv import load_dotenv
 
+load_dotenv()
 
 class SimpleRAG:
     _instance = None
@@ -35,7 +38,12 @@ class SimpleRAG:
         ]
         print(len(self.documents), "documents loaded into RAG.")
         # 1. Embeddings open-source (OllamaEmbed)
-        self.embeddings = OllamaEmbeddings(model=embedding_model)
+        ollama_host = os.getenv("OLLAMA_HOST")
+        kwargs = {"model": embedding_model}
+        if ollama_host:
+            kwargs["base_url"] = ollama_host
+            
+        self.embeddings = OllamaEmbeddings(**kwargs)
 
         # 2. Indexation FAISS open-source
         self.vs = FAISS.from_documents(self.documents, self.embeddings)
