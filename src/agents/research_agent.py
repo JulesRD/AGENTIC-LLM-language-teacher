@@ -4,7 +4,7 @@ import requests
 from src.tools.simple_rag_tool import SimpleRAG
 
 class ResearchAgent(BaseAgent):
-    def __init__(self, rag: SimpleRAG, name="Research"):
+    def __init__(self, name="Research"):
         system_prompt = (
             "You are a highly efficient scientific research agent.\n"
             "Your task is to generate several relevant web queries from a given topic in order to broadly cover the subject.\n"
@@ -13,13 +13,14 @@ class ResearchAgent(BaseAgent):
             "- Verify the consistency and completeness of your JSON before returning it."
         )
         super().__init__(name, system_prompt)
-        self.rag = rag
+        self.rag = SimpleRAG.get_instance()
 
     def generate_queries(self, topic):
         prompt = f"""
         For the following topic:
         {topic}
         Generate 5 to 10 relevant web queries to cover this topic exhaustively.
+        Queries should be concise (10 words max) and contain keywords.
         Return a JSON in the form: {{"queries": ["query1", "query2", ...]}}
         """
         result = self.model.chat(self.system_prompt, prompt)
@@ -101,6 +102,7 @@ class ResearchAgent(BaseAgent):
         for q in queries:
             #articles.extend(self.search_crossref(q, max_results))
             articles.extend(self.search_semantic_scholar(q, max_results))
+            print(f"Fetched {len(articles)} articles so far...")
 
         return articles
 
@@ -113,4 +115,4 @@ class ResearchAgent(BaseAgent):
         queries = self.generate_queries(message)
         articles = self.fetch_articles(queries, max_results)
         self.add_articles_to_rag(articles)
-        return json.dumps(articles, ensure_ascii=False, indent=2)
+        return "" #json.dumps(articles, ensure_ascii=False, indent=2)

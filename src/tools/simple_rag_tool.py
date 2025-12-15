@@ -1,6 +1,5 @@
 from langchain_community.vectorstores import FAISS
 from langchain_ollama import OllamaEmbeddings
-from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.documents import Document
 import os
@@ -12,14 +11,16 @@ class SimpleRAG:
     _instance = None
 
     @staticmethod
-    def get_instance(llm=None, documents=None, embedding_model="mxbai-embed-large"):
+    def get_instance(documents=None, embedding_model="mxbai-embed-large"):
         if SimpleRAG._instance is None:
-            if llm is None:
-                raise ValueError("LLM is required to initialize SimpleRAG")
-            SimpleRAG._instance = SimpleRAG(llm, documents, embedding_model)
+            if documents is None:
+                documents = [Document(
+                    page_content="Hello, world!", metadata={"source": "https://example.com"}
+                )]
+            SimpleRAG._instance = SimpleRAG(documents, embedding_model)
         return SimpleRAG._instance
 
-    def __init__(self, llm, documents=None, embedding_model="mxbai-embed-large"):
+    def __init__(self, documents=None, embedding_model="mxbai-embed-large"):
         """
         llm : instance de ChatOllama (ton modèle LLM)
         documents : liste de langchain_core.documents.Document
@@ -50,26 +51,6 @@ class SimpleRAG:
 
         # 3. Retriever sur FAISS
         self.retriever = self.vs.as_retriever(search_kwargs={"k": 5})
-
-        # 4. Prompt RAG
-        self.prompt = ChatPromptTemplate.from_messages([
-            ("system",
-            "You are a factual assistant.\n"
-            "Use ONLY the retrieved context to answer.\n"
-            "If the context is insufficient, reply: 'Not enough information'.\n\n"
-            "Retrieved context:\n{context}"
-            ),
-            ("human", "{question}")
-        ])
-
-        self.llm = llm
-
-        # 5. Pipeline RAG (graph / LCEL)
-        self.chain = (
-            {"context": self.retriever, "question": RunnablePassthrough()}
-            | self.prompt
-            | self.llm
-        )
 
 
     def add_documents(self, new_documents):
@@ -106,5 +87,4 @@ class SimpleRAG:
         return context, sources
 
     def query(self, question):
-        return ""
-        # return self.chain.invoke(question)
+        return self.search(question)

@@ -9,8 +9,9 @@ max_articles_context = ContextVar("max_articles", default=5)
 
 @tool
 def talk_research(request: str) -> str:
-    """Ask the research agent a question, he will request web searches"""
-    research_agent = ResearchAgent(SimpleRAG.get_instance())
+    """Ask the research agent a question, he will request web searches.
+    The request is a string containing ONLY the topic(s) to research."""
+    research_agent = ResearchAgent(name="Research")
     print("research_agent initialized")
     
     # Get max_results from context
@@ -40,7 +41,7 @@ def talk_synthesis(data: str) -> str:
         ]
     }
     """
-    synthesis_agent = SynthesisAgent(SimpleRAG.get_instance(), name="Synthesis")
+    synthesis_agent = SynthesisAgent(name="Synthesis")
     print("synthesis_agent initialized")
     return synthesis_agent.decide_action(data)
     # print("Les agents sont en maintenance, veuillez réessayer plus tard.")

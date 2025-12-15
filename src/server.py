@@ -1,3 +1,5 @@
+from cgitb import reset
+
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -15,14 +17,12 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-from src.tools.simple_rag_tool import SimpleRAG
-
 # Add the project root to sys.path to allow imports from src
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 from src.agents.llm_wrapper import LLMWrapper
 from src.agents.research_agent import ResearchAgent
-from src.agents.analyse  import AnalysisAgent
+from src.agents.analyse_agent  import AnalysisAgent
 from src.agents.formatting_agent import FormattingAgent
 from src.costs.cost_logger import CostLogger
 from src.tools.agent_tools import max_articles_context
@@ -54,13 +54,9 @@ active_sessions = {} # Map session_id -> stop_event
 
 # documents : langchain_core.documents.Document
 from langchain_core.documents import Document
-document = Document(
-    page_content="Hello, world!", metadata={"source": "https://example.com"}
-)
-rag = SimpleRAG.get_instance(LLMWrapper().model, documents=[document], embedding_model="mxbai-embed-large")
 try:
     # Initialize Agents
-    planner_agent = AnalysisAgent(rag=rag)
+    planner_agent = AnalysisAgent()
     formatting_agent = FormattingAgent()
     print("Agents initialized successfully.")
 except Exception as e:

@@ -6,9 +6,9 @@ from src.prompt.read_prompt import prompt, system_prompt
 
 
 class AnalysisAgent(BaseAgent):
-    def __init__(self, name="Analysis", rag: SimpleRAG = None):
+    def __init__(self, name="Analysis"):
         self.system_prompt = system_prompt("analyse")
-        self.rag = rag
+        self.rag = SimpleRAG.get_instance()
         self.tools = [talk_research, talk_synthesis]
 
         super().__init__(name, self.system_prompt, tools=self.tools)

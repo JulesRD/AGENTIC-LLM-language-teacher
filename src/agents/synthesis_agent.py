@@ -12,10 +12,10 @@ class SynthesisAgent(BaseAgent):
         2) Synthesizing all summaries into a final structured answer.
         """
 
-    def __init__(self, rag: SimpleRAG, name):
+    def __init__(self, name="Synthesis"):
         self.system_prompt = system_prompt("synthese")
         super().__init__(name, self.system_prompt)
-        self.rag = rag
+        self.rag = SimpleRAG.get_instance()
 
     def summarize_article(self, topic, article, user_request=""):
         content = article.get("content", "")
