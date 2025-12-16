@@ -1,19 +1,23 @@
-mistralai
+# Core LLM and Agent Framework
+langchain>=0.1.0
+langchain-core>=0.1.0
+langchain-community>=0.4.1
 langchain-ollama
 langchain-mistralai
-langchain-core~=1.0.5
-langchain~=1.0.7
-dotenv~=0.9.9
-python-dotenv~=1.2.1
-langgraph~=1.0.3
-ddgs~=9.9.1
-duckduckgo_search~=8.1.1
-requests~=2.32.5
-langchain-community~=0.4.1
-langchain-openai~=1.0.3
-fastapi~=0.122.0
-uvicorn
+
+# Web Framework
+fastapi>=0.122.0
+uvicorn[standard]
+
+# Vector Store and Embeddings
 faiss-cpu
-tiktoken~=0.12.0
-pydantic~=2.12.4
-transformers
+tiktoken>=0.12.0
+
+# HTTP and External APIs
+requests>=2.32.5
+
+# Environment and Configuration
+python-dotenv>=1.2.1
+
+# Data Validation
+pydantic>=2.12.4
